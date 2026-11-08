@@ -1447,12 +1447,46 @@ export function apply(ctx) {
       // so the board view asks for 'default'. The request names the session it belongs to, and a session
       // certainly knows the folder it works in - resolve that instead of guessing which board to show.
       if (!workspace && typeof body.sessionId === 'string' && body.sessionId) {
-        try {
-          const sc = typeof ctx.get === 'function' ? ctx.get('sessionController') : null
-          const handle = sc && typeof sc.resolveAgent === 'function' ? await sc.resolveAgent(body.sessionId) : null
-          if (handle && handle.agent) workspace = await workspaceOfExec({ agent: handle.agent })
-        } catch (err) {
-          console.log('dsh-kanban: the workspace of session ' + body.sessionId + ' could not be resolved: ' + ((err && err.message) || err))
+        const registry = getWorkspaceRegistry()
+        const cwdOf = (candidate) => {
+          if (!candidate) return null
+          const header = candidate.header || candidate.session && candidate.session.header || candidate
+          return typeof header.cwd === 'string' && header.cwd ? header.cwd : null
+        }
+        // Every session carries the folder it works in, live or not: a running agent's own header, the
+        // durable persistence snapshot, or the Host inspection. Try them in that order and resolve the
+        // board from the folder, which is what a session's workspace actually means.
+        const attempts = [
+          async () => {
+            const sc = typeof ctx.get === 'function' ? ctx.get('sessionController') : null
+            const handle = sc && typeof sc.resolveAgent === 'function' ? await sc.resolveAgent(body.sessionId) : null
+            return handle && handle.agent ? cwdOf(handle.agent.session) : null
+          },
+          async () => {
+            const sessions = typeof ctx.get === 'function' ? ctx.get('sessions') : null
+            const session = sessions && typeof sessions.get === 'function' ? sessions.get(body.sessionId) : null
+            return session ? cwdOf(session) : null
+          },
+          async () => {
+            const persistence = typeof ctx.get === 'function' ? ctx.get('sessionPersistence') : null
+            if (!persistence || typeof persistence.stat !== 'function') return null
+            return cwdOf(await persistence.stat(body.sessionId))
+          },
+          async () => {
+            const sc = typeof ctx.get === 'function' ? ctx.get('sessionController') : null
+            if (!sc || typeof sc.inspect !== 'function') return null
+            return cwdOf(await sc.inspect(body.sessionId, new AbortController().signal))
+          },
+        ]
+        for (const attempt of attempts) {
+          try {
+            const cwd = await attempt()
+            if (!cwd) continue
+            if (registry && typeof registry.resolveByPath === 'function') workspace = await registry.resolveByPath(cwd)
+            if (workspace) break
+          } catch (err) {
+            console.log('dsh-kanban: the workspace of session ' + body.sessionId + ' could not be resolved: ' + ((err && err.message) || err))
+          }
         }
       }
       if (!workspace) return sendJson(400, { error: 'Unknown workspace: ' + (workspaceId || '(missing)') })
