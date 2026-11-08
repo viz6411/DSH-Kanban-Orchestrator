@@ -173,7 +173,7 @@ function KanbanWorkflowEditor(e){
         (0, W.jsx)('div', { className: 'kanban-wf-skeleton', style: { marginTop: 8, width: '60%' } })
       ] }) : null,
       fatal ? (0, W.jsxs)('div', { children: [
-        (0, W.jsx)('p', { className: 'kanban-wf-error', role: 'alert', children: fill(text('wfSaveFailed', 'Could not save the rule: {detail}'), 'detail', fatal) }),
+        (0, W.jsx)('p', { className: 'kanban-wf-error', role: 'alert', children: fill(text('wfLoadFailed', 'Could not read the settings: {detail}'), 'detail', fatal) }),
         (0, W.jsx)('button', { className: 'kanban-toolbar-button', type: 'button', onClick: load, children: text('wfRetry', 'Retry') })
       ] }, 'fatal') : null,
       err ? (0, W.jsx)('p', { id: 'kanban-wf-error', className: 'kanban-wf-error', role: 'alert', children: err }, 'inline') : null,

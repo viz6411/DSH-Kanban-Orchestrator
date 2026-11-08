@@ -1,0 +1,7 @@
+{
+  "name": "dsh-kanban-browser-checks",
+  "private": true,
+  "type": "module",
+  "description": "Live UI checks for this plugin; needs Playwright and a running DSH Web UI.",
+  "devDependencies": { "playwright": "^1.55.0" }
+}
