@@ -20,7 +20,7 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-wf-error{color:#f6a3a3;font:12px var(--dsw-font-xxs-12,sans-serif)}\
 .kanban-wf-ok{color:#8fd6a4;font:12px var(--dsw-font-xxs-12,sans-serif)}\
 .kanban-wf-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--dsw-alias-border-primary,#26292f)}\
-.kanban-wf-foot button,.kanban-wf-tools button{white-space:nowrap}.kanban-wf-tools input{min-width:150px}.kanban-wf-skeleton{height:30px;border-radius:6px;background:var(--dsw-alias-fill-secondary,#171a1f)}\
+.kanban-wf-foot button,.kanban-wf-tools button{white-space:nowrap}.kanban-wf-tools input{min-width:150px}.kanban-loading .kanban-toolbar-board-name{margin:0 0 10px}.kanban-wf-skeleton{height:30px;border-radius:6px;background:var(--dsw-alias-fill-secondary,#171a1f)}\
 .kanban-wf-close{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\
 .kanban-toolbar-board-name{flex:none;display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.4;padding:3px 8px;border-radius:6px;color:var(--dsw-alias-label-secondary,#9aa1ab);background:var(--dsw-alias-fill-tertiary,rgba(120,130,145,.12));vertical-align:middle}\
 .kanban-toolbar-board-name.is-skeleton{width:80px;min-height:14px;padding:0;background:var(--dsw-alias-fill-secondary,#171a1f)}\
@@ -145,8 +145,8 @@ function KanbanWorkflowEditor(e){
       setSavedState(fill(text('wfBoardSaveFailed', 'Could not switch: {detail}'), 'detail', String((x && x.message) || x)));
     });
   }
-  function onBoard(title) { return boardCols.indexOf(title) >= 0; }
-  var extraCols = boardCols.filter(function (title) { return title && (rows || []).every(function (r) { return r.title.trim() !== title; }); });
+  function onBoard(title) { var needle = String(title).trim().toLowerCase(); return boardCols.some(function (c) { return c.toLowerCase() === needle; }); }
+  var extraCols = boardCols.filter(function (title) { var needle = String(title).trim().toLowerCase(); return title && (rows || []).every(function (r) { return r.title.trim().toLowerCase() !== needle; }); });
   function switchRow(key, fallback, on, field) {
     return (0, W.jsxs)('label', { className: 'kanban-wf-note', children: [
       (0, W.jsx)('input', { type: 'checkbox', checked: !!on, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, (function () { var o = {}; o[field] = ev.target.checked; return o; })())); } }),
