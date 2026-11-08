@@ -5,7 +5,7 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-wf-body{overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:14px}\
 .kanban-wf-section{border:1px solid var(--dsw-alias-border-secondary,#202328);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}\
 .kanban-wf-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}\
-.kanban-wf-caption{font:600 12px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-primary,#f5f6f7)}\
+.kanban-wf-section-head>div:first-child{min-width:0}.kanban-wf-section-head .kanban-wf-caption{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kanban-wf-caption{font:600 12px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-primary,#f5f6f7)}\
 .kanban-wf-section-sub{font:11px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-secondary,#9aa1ab);margin:2px 0 0}\
 .kanban-wf-scope{font:11px var(--dsw-font-xxs-12,sans-serif);padding:2px 7px;border-radius:5px;background:var(--dsw-alias-fill-tertiary,rgba(120,130,145,.12));color:var(--dsw-alias-label-secondary,#9aa1ab);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}\
 .kanban-wf-row{display:grid;grid-template-columns:12px minmax(90px,1fr) minmax(96px,1fr) minmax(88px,1fr) auto auto;gap:8px;align-items:center}\
@@ -23,7 +23,7 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-wf-foot button,.kanban-wf-tools button{white-space:nowrap}.kanban-wf-tools input{min-width:150px}.kanban-loading .kanban-toolbar-board-name{margin:0 0 10px}.kanban-wf-skeleton{height:30px;border-radius:6px;background:var(--dsw-alias-fill-secondary,#171a1f)}\
 .kanban-wf-close{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\
 .kanban-toolbar-board-name{flex:none;display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.4;padding:3px 8px;border-radius:6px;color:var(--dsw-alias-label-secondary,#9aa1ab);background:var(--dsw-alias-fill-tertiary,rgba(120,130,145,.12));vertical-align:middle}\
-.kanban-toolbar-board-name.is-skeleton{width:80px;min-height:14px;padding:0;background:var(--dsw-alias-fill-secondary,#171a1f)}\
+.kanban-toolbar-board-name.is-skeleton{width:80px;min-height:23px;padding:0;background:var(--dsw-alias-fill-secondary,#171a1f)}\
 @media (max-width:980px){.kanban-wf{inset:8px}.kanban-wf-row{grid-template-columns:12px 1fr 1fr;grid-auto-rows:auto}}';
 var WF_MAX_COLUMNS = 12;
 function KanbanWorkflowEditor(e){
@@ -77,6 +77,14 @@ function KanbanWorkflowEditor(e){
   }
   (0, pe.useEffect)(function () { if (!open) return; setConfirmClose(false); setMsg(null); load(); }, [open, workspaceId]);
   (0, pe.useEffect)(function () { if (rows === null) return; setErr(problems()); }, [rows, extra]);
+
+  // R3.7 (our fork): opening the screen puts the caret in the first column field; the marker focus trick keeps
+  // it from stealing focus again after every keystroke.
+  (0, pe.useEffect)(function () {
+    if (rows === null) return;
+    var field = document.querySelector('.kanban-wf-row input');
+    if (field && !field.dataset.wfFocused) { field.dataset.wfFocused = '1'; field.focus(); }
+  }, [rows]);
   (0, pe.useEffect)(function () {
     if (!open) return;
     function onKey(ev) { if (ev.key === 'Escape') attemptClose(); }
@@ -189,7 +197,7 @@ function KanbanWorkflowEditor(e){
         (rows || []).map(function (r, i) {
           var isDup = !!dup[r.title.trim().toLowerCase()];
           return (0, W.jsxs)('div', { className: 'kanban-wf-row' + (isDup ? ' kanban-wf-row-invalid' : ''), children: [
-            (0, W.jsx)('span', { className: 'kanban-wf-dot', 'data-filled': onBoard(r.title.trim()) ? '1' : '0', 'aria-label': onBoard(r.title.trim()) ? text('wfOnBoard', 'Already on this board') : text('wfWillCreate', 'Will be created on save') }),
+            (0, W.jsx)('span', { className: 'kanban-wf-dot', role: 'img', 'data-filled': onBoard(r.title.trim()) ? '1' : '0', 'aria-label': onBoard(r.title.trim()) ? text('wfOnBoard', 'Already on this board') : text('wfWillCreate', 'Will be created on save') }),
             (0, W.jsx)('input', { value: r.title, maxLength: 60, 'aria-label': text('wfColumns', 'Columns'), 'aria-describedby': isDup ? 'kanban-wf-error' : undefined, onChange: function (ev) { patchRow(i, { title: ev.target.value }); } }),
             (0, W.jsxs)('select', { className: 'kanban-orch-select', value: r.role, 'aria-label': text('wfRole', 'Role'), onChange: function (ev) { patchRow(i, { role: ev.target.value }); }, children: [
               (0, W.jsx)('option', { value: '', children: text('wfNoRole', '- no role -') }, 'norole'),
@@ -221,7 +229,8 @@ function KanbanWorkflowEditor(e){
         (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfWip', 'WIP limit per column'), (0, W.jsx)('input', { type: 'number', min: 1, max: 20, value: extra.wipLimit, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { wipLimit: ev.target.value })); } })] }, 'wip'),
         (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfPullOrder', 'Pull order'), (0, W.jsxs)('select', { className: 'kanban-orch-select', value: extra.pullOrder, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { pullOrder: ev.target.value })); }, children: [
           (0, W.jsx)('option', { value: 'priority', children: text('wfPullPriority', 'by priority') }, 'p'),
-          (0, W.jsx)('option', { value: 'created', children: text('wfPullCreated', 'by creation') }, 'c')
+          (0, W.jsx)('option', { value: 'created', children: text('wfPullCreated', 'by creation') }, 'c'),
+          (0, W.jsx)('option', { value: 'board', children: text('wfPullBoard', 'board order') }, 'b')
         ] })] }, 'pull'),
         switchRow('wfAutoPull', 'Auto-pull cards', extra.autoPull, 'autoPull'),
         switchRow('wfEnforceWip', 'Enforce limit', extra.enforceWip, 'enforceWip'),
