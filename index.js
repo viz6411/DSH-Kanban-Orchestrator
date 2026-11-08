@@ -1490,7 +1490,39 @@ export function apply(ctx) {
         }
       }
       if (!workspace) return sendJson(400, { error: 'Unknown workspace: ' + (workspaceId || '(missing)') })
+      // R2.9 (our fork): a board is a workspace's board, and the UI must say whose board it is instead of
+      // leaving the person to guess. Every answer carries the workspace it was read from.
+      if (method === 'roles') {
+        try {
+          const presets = typeof ctx.get === 'function' ? ctx.get('agentPresets') : null
+          const listed = presets && typeof presets.list === 'function' ? await presets.list() : []
+          const names = []
+          for (const preset of listed ?? []) {
+            const id = preset && (preset.id || preset.name)
+            if (typeof id === 'string' && id && !names.includes(id)) names.push(id)
+          }
+          return sendJson(200, { ok: true, roles: names })
+        } catch (err) {
+          return sendJson(400, { error: 'the role list could not be read: ' + ((err && err.message) || err) })
+        }
+      }
+      // R2.9 (our fork): a card is assigned to a real role, so the board refuses a made-up one instead of
+      // quietly creating a card nobody can ever be given.
+      if ((method === 'addCard' || method === 'updateCard') && typeof args.assignee === 'string' && args.assignee.trim()) {
+        try {
+          const presets = typeof ctx.get === 'function' ? ctx.get('agentPresets') : null
+          const listed = presets && typeof presets.list === 'function' ? await presets.list() : []
+          const wanted = args.assignee.trim()
+          const known = (listed ?? []).some((preset) => preset && (preset.id === wanted || preset.name === wanted))
+          if (!known) return sendJson(400, { error: 'Assignee "' + wanted + '" is not a role this host has a preset for. Choose one of: ' + (listed ?? []).map((p) => p && (p.id || p.name)).filter(Boolean).join(', ') })
+        } catch (err) {
+          return sendJson(400, { error: 'the assignee could not be checked: ' + ((err && err.message) || err) })
+        }
+      }
       const result = await dispatch(workspace, method, args, 'human')
+      if (result && !result.error && method !== 'roles') {
+        result.workspace = { id: workspace.id, title: workspace.title || workspace.path, path: workspace.path }
+      }
       return sendJson(result.error ? 400 : 200, result)
     } catch (err) {
       const status = err instanceof SyntaxError ? 400 : 500
