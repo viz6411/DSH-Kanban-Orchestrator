@@ -299,7 +299,7 @@ function KanbanWorkflowEditor(e){
   var extraCols = boardCols.filter(function (title) { var needle = String(title).trim().toLowerCase(); return title && (rows || []).every(function (r) { return r.title.trim().toLowerCase() !== needle; }); });
   function switchRow(key, fallback, on, field) {
     return (0, W.jsxs)('label', { className: 'kanban-wf-note', children: [
-      (0, W.jsx)('input', { type: 'checkbox', checked: !!on, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, (function () { var o = {}; o[field] = ev.target.checked; return o; })())); } }),
+      (0, W.jsx)('input', { type: 'checkbox', 'aria-label': text(key, fallback), checked: !!on, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, (function () { var o = {}; o[field] = ev.target.checked; return o; })())); } }),
       text(key, fallback)
     ] }, key);
   }
@@ -388,8 +388,8 @@ function KanbanWorkflowEditor(e){
           ] }),
           (0, W.jsx)('span', { className: 'kanban-wf-scope', children: text('wfScopeAll', 'all boards') })
         ] }),
-        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfWip', 'WIP limit per column'), (0, W.jsx)('input', { type: 'number', min: 1, max: 20, value: extra.wipLimit, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { wipLimit: ev.target.value })); } })] }, 'wip'),
-        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfPullOrder', 'Pull order'), (0, W.jsxs)('select', { className: 'kanban-orch-select', value: extra.pullOrder, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { pullOrder: ev.target.value })); }, children: [
+        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfWip', 'WIP limit per column'), (0, W.jsx)('input', { type: 'number', min: 1, max: 20, 'aria-label': text('wfWip', 'WIP limit per column'), value: extra.wipLimit, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { wipLimit: ev.target.value })); } })] }, 'wip'),
+        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfPullOrder', 'Pull order'), (0, W.jsxs)('select', { className: 'kanban-orch-select', 'aria-label': text('wfPullOrder', 'Pull order'), value: extra.pullOrder, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { pullOrder: ev.target.value })); }, children: [
           (0, W.jsx)('option', { value: 'priority', children: text('wfPullPriority', 'by priority') }, 'p'),
           (0, W.jsx)('option', { value: 'created', children: text('wfPullCreated', 'by creation') }, 'c'),
           (0, W.jsx)('option', { value: 'board', children: text('wfPullBoard', 'board order') }, 'b')
@@ -410,7 +410,7 @@ function KanbanWorkflowEditor(e){
           (0, W.jsx)('span', { className: 'kanban-wf-scope', children: text('wfScopeBoard', 'this board only') })
         ] }),
         (0, W.jsxs)('label', { className: 'kanban-wf-note', children: [
-          (0, W.jsx)('input', { type: 'checkbox', checked: !!extra.enabled, onChange: function () { toggleBoard(); } }),
+          (0, W.jsx)('input', { type: 'checkbox', 'aria-label': text('wfEnabled', 'Orchestrator on this board'), checked: !!extra.enabled, onChange: function () { toggleBoard(); } }),
           text('wfEnabled', 'Orchestrator on this board')
         ] }, 'wfEnabled'),
         savedState ? (0, W.jsx)('p', { className: savedState === text('wfBoardSaved', 'saved') ? 'kanban-wf-ok' : 'kanban-wf-error', children: savedState }, 'boardstate') : null

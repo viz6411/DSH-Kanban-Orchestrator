@@ -1616,7 +1616,16 @@ export function apply(ctx) {
   ctx.inject(['fs', 'workspaceRegistry'], () => {
     void runStartupCheck()
     // Orchestrator starts after storage is ready; its timer is unref'd.
-    setTimeout(() => { try { orch.start() } catch (err) { console.log('dsh-kanban: orchestrator start failed: ' + ((err && err.message) || err)) } }, 2000)
+    const startTimer = setTimeout(() => { try { orch.start() } catch (err) { console.log('dsh-kanban: orchestrator start failed: ' + ((err && err.message) || err)) } }, 2000)
+    // R3.8c (tester E2): the sweep interval has to belong to this registration. It did not: nothing here disposed
+    // the orchestrator, so every plugin reload left the previous activation's interval running. A leftover one
+    // flooded the journal with an error that no longer existed in the live code, about 30 lines a minute, for
+    // over an hour. Registrations that own an effect must say how to undo it (see practices.md: a registration
+    // is removed with the context that owns it).
+    return () => {
+      clearTimeout(startTimer)
+      if (orch) orch.dispose()
+    }
   })
 
   // ---- Tool registration ----
