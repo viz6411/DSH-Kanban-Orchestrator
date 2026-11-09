@@ -9,10 +9,11 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-wf-section-sub{font:11px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-secondary,#9aa1ab);margin:2px 0 0}\
 .kanban-wf-scope{flex:none;font:11px var(--dsw-font-xxs-12,sans-serif);padding:2px 7px;border-radius:5px;background:var(--dsw-alias-fill-tertiary,rgba(120,130,145,.12));color:var(--dsw-alias-label-secondary,#9aa1ab);white-space:nowrap}\
 .kanban-wf-rows{position:relative;display:flex;flex-direction:column;gap:6px}\
-.kanban-wf-row{display:grid;grid-template-columns:14px 40px minmax(110px,1fr) minmax(100px,1fr) minmax(112px,1fr) 26px;grid-template-areas:"grip dot name role step del";gap:8px;align-items:center}\
-.kanban-wf-headrow{display:grid;grid-template-columns:14px 40px minmax(110px,1fr) minmax(100px,1fr) minmax(112px,1fr) 26px;gap:8px;align-items:center;font:11px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-secondary,#9aa1ab);padding:0 0 2px}\
-.kanban-wf-headrow span{min-width:0;white-space:nowrap}.kanban-wf-headrow .h-dot{grid-column:1/3}.kanban-wf-headrow .h-name{grid-column:3}.kanban-wf-headrow .h-role{grid-column:4}.kanban-wf-headrow .h-step{grid-column:5}.kanban-wf-headrow .h-del{grid-column:6}\
-.kanban-wf-a-grip{grid-area:grip}.kanban-wf-a-dot{grid-area:dot}.kanban-wf-a-name{grid-area:name}.kanban-wf-a-role{grid-area:role}.kanban-wf-a-step{grid-area:step}.kanban-wf-a-del{grid-area:del;display:flex;gap:6px}\
+.kanban-wf-row{display:grid;grid-template-columns:14px 40px minmax(120px,1fr) minmax(110px,1fr) 26px;grid-template-areas:"grip dot name role del";gap:8px;align-items:center}\
+.kanban-wf-headrow{display:grid;grid-template-columns:14px 40px minmax(120px,1fr) minmax(110px,1fr) 26px;gap:8px;align-items:center;font:11px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-secondary,#9aa1ab);padding:0 0 2px}\
+.kanban-wf-headrow span{min-width:0;white-space:nowrap}.kanban-wf-headrow .h-dot{grid-column:1/3}.kanban-wf-headrow .h-name{grid-column:3}.kanban-wf-headrow .h-role{grid-column:4}.kanban-wf-headrow .h-del{grid-column:5}\
+.kanban-wf-picks{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}.kanban-wf-picks .kanban-wf-field{flex:1 1 210px}\
+.kanban-wf-a-grip{grid-area:grip}.kanban-wf-a-dot{grid-area:dot}.kanban-wf-a-name{grid-area:name}.kanban-wf-a-role{grid-area:role}.kanban-wf-a-del{grid-area:del;display:flex;gap:6px}\
 .kanban-wf-grip{cursor:grab;font:12px var(--dsw-font-xxs-12,sans-serif);color:var(--dsw-alias-label-secondary,#9aa1ab);padding:2px 4px;border-radius:4px;border:1px solid transparent;line-height:1.2}\
 .kanban-wf-grip:focus-visible{outline:2px solid var(--dsw-alias-label-primary,#f5f6f7);outline-offset:1px}.kanban-wf-grip[aria-pressed="true"]{color:var(--dsw-alias-label-primary,#f5f6f7);border-color:var(--dsw-alias-border-primary,#3a3f47)}\
 .kanban-wf-row{cursor:grab}.kanban-wf-row input,.kanban-wf-row select{cursor:text}.kanban-wf-row button{cursor:default}\
@@ -35,7 +36,7 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-wf-close{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\
 .kanban-toolbar-board-name{flex:none;display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.4;padding:3px 8px;border-radius:6px;color:var(--dsw-alias-label-secondary,#9aa1ab);background:var(--dsw-alias-fill-tertiary,rgba(120,130,145,.12));vertical-align:middle}\
 .kanban-toolbar-board-name.is-skeleton{width:80px;min-height:23px;padding:0;background:var(--dsw-alias-fill-secondary,#171a1f)}\
-@media (max-width:980px){.kanban-wf{inset:8px}.kanban-wf-headrow,.kanban-wf-row{grid-template-columns:16px 46px minmax(84px,1fr) minmax(84px,1fr) minmax(92px,1fr) 26px}}';
+@media (max-width:980px){.kanban-wf{inset:8px}.kanban-wf-headrow,.kanban-wf-row{grid-template-columns:16px 46px minmax(96px,1fr) minmax(96px,1fr) 26px}}';
 var WF_MAX_COLUMNS = 12;
 var wfNewRowSeq = 0;
 // R3.8 (k1601): drag state is module-level on purpose. A single panel is open at a time, and the drop
@@ -72,13 +73,9 @@ function KanbanWorkflowEditor(e){
     Promise.all([La('getPolicy', { workspaceId: workspaceId }), un('roles', {}, workspaceId), La('workspaces', {})])
       .then(function (res) {
         var pol = res[0] || {}, shared = pol.shared || {}, titles = shared.sharedTitles || {}, byTitle = titles.columnRolesByTitle || {};
-        var cols = (titles.columns || []).map(function (title) {
-          var kind = 'flow';
-          if ((titles.sourceColumnTitles || []).indexOf(title) >= 0) kind = 'source';
-          else if (titles.entryColumnTitle === title) kind = 'entry';
-          else if ((titles.doneColumnTitles || []).indexOf(title) >= 0) kind = 'done';
-          return { title: title, role: byTitle[title] || '', kind: kind };
-        });
+        // R3.9 (the human's requirement): a column carries a name and a role, nothing else. Where the dispatcher
+        // takes work from and where work counts as finished are two settings of the rule, not a property of a row.
+        var cols = (titles.columns || []).map(function (title) { return { title: title, role: byTitle[title] || '' }; });
         setRows(cols);
         // Keyed by the board column id when the name matches a column that already exists on the board; for a
         // column the rule knows but the board does not, the load-time position is the identity. Neither reads
@@ -95,6 +92,8 @@ function KanbanWorkflowEditor(e){
           labelAssignments: shared.labelAssignments !== false,
           dispatchEnabled: shared.dispatchEnabled === true,
           dispatchModel: shared.dispatchModel ? String(shared.dispatchModel.provider || '') + '/' + String(shared.dispatchModel.model || '') : '',
+          sourceTitle: ((pol.shared && pol.shared.sharedTitles) || {}).sourceColumnTitles ? (((pol.shared.sharedTitles.sourceColumnTitles) || [])[0] || '') : '',
+          doneTitle: ((pol.shared && pol.shared.sharedTitles) || {}).doneColumnTitles ? (((pol.shared.sharedTitles.doneColumnTitles) || [])[0] || '') : '',
           enabled: !!(pol.effective && pol.effective.enabled)
         });
         setRoles(((res[1] && res[1].roles) || []).filter(function (x) { return /^(team-)?(manager|developer|tester|reviewer|designer|researcher)$/.test(String(x)); }));
@@ -293,7 +292,14 @@ function KanbanWorkflowEditor(e){
       if (seen[name]) return text('wfDupColumn', 'A column with this name already exists');
       seen[name] = 1;
     }
-    if (list.filter(function (r) { return r.kind === 'entry'; }).length > 1) return text('wfOneEntry', 'Only one entry column is allowed');
+    var src = String(extra.sourceTitle || '').trim();
+    var dn = String(extra.doneTitle || '').trim();
+    var has = function (name) { return list.some(function (r) { return r.title.trim().toLowerCase() === name.toLowerCase(); }); };
+    if (!src) return text('wfNeedSource', 'Choose the column the dispatcher takes cards from');
+    if (!dn) return text('wfNeedDone', 'Choose the column where a card counts as done');
+    if (!has(src)) return text('wfSourceMissing', 'The column cards are taken from is not part of the rule');
+    if (!has(dn)) return text('wfDoneMissing', 'The column where cards count as done is not part of the rule');
+    if (src.toLowerCase() === dn.toLowerCase()) return text('wfSourceDoneSame', 'Work cannot be taken from and finished in the same column');
     var wip = Number(extra.wipLimit);
     if (!(wip >= 1 && wip <= 20)) return text('wfWipRange', 'WIP limit must be 1-20');
     return null;
@@ -305,7 +311,8 @@ function KanbanWorkflowEditor(e){
     var policy = {
       columns: rows, wipLimit: Number(extra.wipLimit), autoPull: !!extra.autoPull, enforceWip: !!extra.enforceWip,
       pullOrder: extra.pullOrder, stampAssignments: !!extra.stampAssignments, labelAssignments: !!extra.labelAssignments,
-      dispatchEnabled: !!extra.dispatchEnabled, dispatchModel: extra.dispatchModel || null
+      dispatchEnabled: !!extra.dispatchEnabled, dispatchModel: extra.dispatchModel || null,
+      sourceColumnTitle: String(extra.sourceTitle || '').trim(), doneColumnTitle: String(extra.doneTitle || '').trim()
     };
     La('saveColumns', { workspaceId: workspaceId, policy: policy }).then(function (r) {
       setBusy(false);
@@ -335,7 +342,6 @@ function KanbanWorkflowEditor(e){
       text(key, fallback)
     ] }, key);
   }
-  var kinds = [['entry', 'wfKindEntry', 'First stop'], ['source', 'wfKindSource', 'Taken from'], ['flow', 'wfKindFlow', 'Middle step'], ['done', 'wfKindDone', 'Done']];
   var dup = {}, seen2 = {};
   (rows || []).forEach(function (r) { var n = r.title.trim().toLowerCase(); if (seen2[n]) dup[n] = 1; seen2[n] = 1; });
   var atLimit = (rows || []).length >= WF_MAX_COLUMNS;
@@ -364,7 +370,6 @@ function KanbanWorkflowEditor(e){
           (0, W.jsxs)('div', { children: [
             (0, W.jsx)('div', { className: 'kanban-wf-caption', children: text('wfColumns', 'Columns') }),
             (0, W.jsx)('p', { className: 'kanban-wf-section-sub', children: text('wfDragHint', 'Drag a row to reorder') }),
-            (0, W.jsx)('p', { className: 'kanban-wf-section-sub', children: text('wfStepExplain', 'Taken from: cards are pulled from this column. First stop: a pulled card is placed here first.') })
           ] }),
           (0, W.jsx)('span', { className: 'kanban-wf-scope', children: text('wfScopeAll', 'all boards') })
         ] }),
@@ -374,7 +379,6 @@ function KanbanWorkflowEditor(e){
           (0, W.jsx)('span', { className: 'h-dot', children: text('wfColOnBoard', 'On board') }, 'hd-dot'),
           (0, W.jsx)('span', { className: 'h-name', children: text('wfColName', 'Column') }, 'hd-name'),
           (0, W.jsx)('span', { className: 'h-role', children: text('wfColRole', 'Team role') }, 'hd-role'),
-          (0, W.jsx)('span', { className: 'h-step', children: text('wfColStep', 'Pipeline step') }, 'hd-step'),
           (0, W.jsx)('span', { className: 'h-del' }, 'hd-del')
         ] }, 'headrow'),
         (0, W.jsxs)('div', { className: 'kanban-wf-rows', onDragOver: overRows, onDrop: dropRows, children: [
@@ -397,7 +401,6 @@ function KanbanWorkflowEditor(e){
                   roles.map(function (name) { return (0, W.jsx)('option', { value: name, children: name }, name); }),
                   r.role && roles.indexOf(r.role) < 0 ? (0, W.jsx)('option', { value: r.role, children: r.role }, r.role) : null
                 ].filter(Boolean) }),
-                (0, W.jsxs)('select', { className: 'kanban-orch-select kanban-wf-a-step', value: r.kind, draggable: false, 'aria-label': text('wfColStep', 'Pipeline step'), onChange: function (ev) { patchRow(i, { kind: ev.target.value }); }, children: kinds.map(function (k) { return (0, W.jsx)('option', { value: k[0], children: text(k[1], k[2]) }, k[0]); }) }),
                 (0, W.jsxs)('span', { className: 'kanban-wf-del kanban-wf-a-del', children: [
                   (0, W.jsx)('button', { className: 'kanban-toolbar-button', type: 'button', draggable: false, 'aria-label': text('wfRemove', 'Remove column'), title: text('wfRemove', 'Remove column'), onClick: function () { removeRow(i); }, children: '\u2715' })
                 ] })
@@ -405,6 +408,16 @@ function KanbanWorkflowEditor(e){
             }, rowKeys[i] !== undefined ? rowKeys[i] : ('k' + i + '-' + r.title));
           })
         ] }, 'rows'),
+        (0, W.jsxs)('div', { className: 'kanban-wf-picks', children: [
+          (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfSourceColumn', 'Cards are taken from'), (0, W.jsxs)('select', { className: 'kanban-orch-select', 'aria-label': text('wfSourceColumn', 'Cards are taken from'), value: extra.sourceTitle || '', draggable: false, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { sourceTitle: ev.target.value })); }, children: [
+            (0, W.jsx)('option', { value: '', children: text('wfPickNone', '- choose a column -') }, 'none'),
+            (rows || []).map(function (r) { return (0, W.jsx)('option', { value: r.title, children: r.title }, 's-' + r.title); })
+          ].filter(Boolean) })] }, 'pick-source'),
+          (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfDoneColumn', 'Cards count as done in'), (0, W.jsxs)('select', { className: 'kanban-orch-select', 'aria-label': text('wfDoneColumn', 'Cards count as done in'), value: extra.doneTitle || '', draggable: false, onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { doneTitle: ev.target.value })); }, children: [
+            (0, W.jsx)('option', { value: '', children: text('wfPickNone', '- choose a column -') }, 'none'),
+            (rows || []).map(function (r) { return (0, W.jsx)('option', { value: r.title, children: r.title }, 'd-' + r.title); })
+          ].filter(Boolean) })] }, 'pick-done')
+        ] }, 'picks'),
         extraCols.length ? (0, W.jsx)('p', { className: 'kanban-wf-muted', children: fill(text('wfExtraColumns', 'This board has columns outside the rule: {names}. They stay on the board but are not automated.'), 'names', extraCols.join(', ')) }, 'extra') : null,
         atLimit ? (0, W.jsx)('p', { className: 'kanban-wf-muted', children: text('wfMaxColumns', 'Maximum 12 columns') }, 'limit') : (0, W.jsxs)('div', { className: 'kanban-wf-tools', children: [
           (0, W.jsx)('input', { value: newTitle, maxLength: 60, 'aria-label': text('wfAdd', 'Add column'), placeholder: text('wfAdd', 'Add column'), onChange: function (ev) { setNewTitle(ev.target.value); }, onKeyDown: function (ev) { if (ev.key === 'Enter') addColumn(); } }),
