@@ -37,6 +37,7 @@ var WF_STYLE = '.kanban-wf{position:fixed;inset:16px;max-height:calc(100vh - 32p
 .kanban-toolbar-board-name.is-skeleton{width:80px;min-height:23px;padding:0;background:var(--dsw-alias-fill-secondary,#171a1f)}\
 @media (max-width:980px){.kanban-wf{inset:8px}.kanban-wf-headrow,.kanban-wf-row{grid-template-columns:16px 46px minmax(84px,1fr) minmax(84px,1fr) minmax(92px,1fr) 26px}}';
 var WF_MAX_COLUMNS = 12;
+var wfNewRowSeq = 0;
 // R3.8 (k1601): drag state is module-level on purpose. A single panel is open at a time, and the drop
 // handler plus the dragend handler have to see the same values regardless of which render they came from.
 var wfDrag = { from: -1, over: -1, grab: -1, pos: -1, committed: false };
@@ -58,6 +59,10 @@ function KanbanWorkflowEditor(e){
   var dz = (0, pe.useState)(-1), dragIdx = dz[0], setDragIdx = dz[1];
   var dp = (0, pe.useState)(-1), dropAt = dp[0], setDropAt = dp[1];
   var gb = (0, pe.useState)(-1), grabIdx = gb[0], setGrabIdx = gb[1];
+  // R3.8e (reviewer B1): one stable id per row, fixed when the rows are loaded and moved along with them. The
+  // render key used to be title + index, and a title changes on every keystroke, so React remounted the row and
+  // the caret was lost after the first character - columns 2..N could not be typed into at all.
+  var rk = (0, pe.useState)([]), rowKeys = rk[0], setRowKeys = rk[1];
   var lv = (0, pe.useState)(''), live = lv[0], setLive = lv[1];
   var t = (0, De)();
   function text(key, fallback) { var v = t(key); return (v === key || !v) ? fallback : v; }
@@ -75,6 +80,12 @@ function KanbanWorkflowEditor(e){
           return { title: title, role: byTitle[title] || '', kind: kind };
         });
         setRows(cols);
+        // Keyed by the board column id when the name matches a column that already exists on the board; for a
+        // column the rule knows but the board does not, the load-time position is the identity. Neither reads
+        // the current title, so editing a name cannot change a key.
+        var idByTitle = {};
+        ((pol.boardColumns) || []).forEach(function (c) { idByTitle[String(c.title || '').trim().toLowerCase()] = String(c.id); });
+        setRowKeys(cols.map(function (r, i) { return 'k' + i + '-' + (idByTitle[r.title.trim().toLowerCase()] || 'x'); }));
         setExtra({
           wipLimit: shared.wipLimit == null ? 1 : shared.wipLimit,
           autoPull: shared.autoPull !== false,
@@ -93,7 +104,14 @@ function KanbanWorkflowEditor(e){
       })
       .catch(function (x) { setFatal(String((x && x.message) || x)); });
   }
-  (0, pe.useEffect)(function () { if (!open) return; setConfirmClose(false); setMsg(null); load(); }, [open, workspaceId]);
+  (0, pe.useEffect)(function () {
+    if (!open) return;
+    // Minor (reviewer r38): wfDrag lives at module level, so a half-finished grab from a previous opening of the
+    // panel could still be in it when the panel opens again. A new opening starts clean.
+    wfDrag.from = -1; wfDrag.over = -1; wfDrag.grab = -1; wfDrag.pos = -1; wfDrag.committed = false;
+    setDragIdx(-1); setGrabIdx(-1); setDropAt(-1);
+    setConfirmClose(false); setMsg(null); load();
+  }, [open, workspaceId]);
   (0, pe.useEffect)(function () { if (rows === null) return; setErr(problems()); }, [rows, extra]);
 
   // R3.7 (our fork): opening the screen puts the caret in the first column field; the marker focus trick keeps
@@ -134,6 +152,8 @@ function KanbanWorkflowEditor(e){
     if (target === from) return false;
     list.splice(target, 0, item);
     setDirty(true); setRows(list);
+    var keys = (rowKeys || []).slice();
+    if (keys.length === list.length) { var kitem = keys.splice(from, 1)[0]; keys.splice(target, 0, kitem); setRowKeys(keys) }
     return target;
   }
   function droplineHost() { return document.querySelector('.kanban-wf-rows'); }
@@ -199,8 +219,14 @@ function KanbanWorkflowEditor(e){
     if (index === wfDrag.over) return;
     wfDrag.over = index; setDropAt(index); paintDropline(index);
     var total = (rows || []).length;
-    announce('wfDragPosition', '{name}: position {n} of {N}', rowTitle(wfDrag.from >= 0 ? wfDrag.from : wfDrag.grab),
-             index > total ? total : index + 1 > total ? total : index + 1, total);
+    // R3.8e (reviewer I-4): a boundary index counts insertions *before* the move. When the pointer is below the
+    // row being dragged, that row is gone from above first, so its real position is the boundary index - the old
+    // formula promised one place further down than the row ever landed.
+    var from = wfDrag.from >= 0 ? wfDrag.from : wfDrag.grab;
+    var prospective = index > from ? index : index + 1;
+    if (prospective > total) prospective = total;
+    if (prospective < 1) prospective = 1;
+    announce('wfDragPosition', '{name}: position {n} of {N}', rowTitle(from), prospective, total);
   }
   function commitMove() {
     var from = wfDrag.from >= 0 ? wfDrag.from : wfDrag.grab;
@@ -242,13 +268,19 @@ function KanbanWorkflowEditor(e){
     }
     if (key === 'Escape' && wfDrag.grab === i) { ev.preventDefault(); cancelMove(); }
   }
-  function removeRow(i) { setDirty(true); setRows((rows || []).filter(function (_, j) { return j !== i; })); }
+  function removeRow(i) {
+    setDirty(true);
+    setRows((rows || []).filter(function (_, j) { return j !== i; }));
+    setRowKeys((rowKeys || []).filter(function (_, j) { return j !== i; }));
+  }
   function addColumn() {
     var name = String(newTitle || '').trim();
     if (!name) return;
     if ((rows || []).some(function (r) { return r.title.trim().toLowerCase() === name.toLowerCase(); })) { setErr(text('wfDupColumn', 'A column with this name already exists')); return; }
     setDirty(true); setErr(null);
     setRows((rows || []).concat([{ title: name.slice(0, 60), role: '', kind: 'flow' }]));
+    wfNewRowSeq += 1;
+    setRowKeys((rowKeys || []).concat(['new-' + wfNewRowSeq]));
     setNewTitle('');
   }
   function problems() {
@@ -370,7 +402,7 @@ function KanbanWorkflowEditor(e){
                   (0, W.jsx)('button', { className: 'kanban-toolbar-button', type: 'button', draggable: false, 'aria-label': text('wfRemove', 'Remove column'), title: text('wfRemove', 'Remove column'), onClick: function () { removeRow(i); }, children: '\u2715' })
                 ] })
               ]
-            }, r.title + ':' + i);
+            }, rowKeys[i] !== undefined ? rowKeys[i] : ('k' + i + '-' + r.title));
           })
         ] }, 'rows'),
         extraCols.length ? (0, W.jsx)('p', { className: 'kanban-wf-muted', children: fill(text('wfExtraColumns', 'This board has columns outside the rule: {names}. They stay on the board but are not automated.'), 'names', extraCols.join(', ')) }, 'extra') : null,
@@ -399,7 +431,7 @@ function KanbanWorkflowEditor(e){
         switchRow('wfStamp', 'Assignee stamp on cards', extra.stampAssignments, 'stampAssignments'),
         switchRow('wfLabels', 'Label assignments', extra.labelAssignments, 'labelAssignments'),
         switchRow('wfDispatch', 'Dispatch to agents', extra.dispatchEnabled, 'dispatchEnabled'),
-        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfDispatchModel', 'Model'), (0, W.jsx)('input', { value: extra.dispatchModel, 'aria-label': text('wfDispatchModel', 'Model'), placeholder: 'provider/model', onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { dispatchModel: ev.target.value })); } })] }, 'model')
+        (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfDispatchModel', 'Model'), (0, W.jsx)('input', { value: extra.dispatchModel, placeholder: text('wfModelHint', 'provider/model'), 'aria-label': text('wfDispatchModel', 'Model'), placeholder: 'provider/model', onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { dispatchModel: ev.target.value })); } })] }, 'model')
       ] }),
       (0, W.jsxs)('div', { className: 'kanban-wf-section', children: [
         (0, W.jsxs)('div', { className: 'kanban-wf-section-head', children: [
