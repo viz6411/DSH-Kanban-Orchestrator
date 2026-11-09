@@ -64,6 +64,8 @@ function KanbanWorkflowEditor(e){
   // render key used to be title + index, and a title changes on every keystroke, so React remounted the row and
   // the caret was lost after the first character - columns 2..N could not be typed into at all.
   var rk = (0, pe.useState)([]), rowKeys = rk[0], setRowKeys = rk[1];
+  // R3.9: remembers that the caret has already been placed for this opening of the panel.
+  var focusPlacedRef = (0, pe.useRef)(false);
   var lv = (0, pe.useState)(''), live = lv[0], setLive = lv[1];
   var t = (0, De)();
   function text(key, fallback) { var v = t(key); return (v === key || !v) ? fallback : v; }
@@ -109,16 +111,22 @@ function KanbanWorkflowEditor(e){
     // panel could still be in it when the panel opens again. A new opening starts clean.
     wfDrag.from = -1; wfDrag.over = -1; wfDrag.grab = -1; wfDrag.pos = -1; wfDrag.committed = false;
     setDragIdx(-1); setGrabIdx(-1); setDropAt(-1);
+    focusPlacedRef.current = false;
     setConfirmClose(false); setMsg(null); load();
   }, [open, workspaceId]);
   (0, pe.useEffect)(function () { if (rows === null) return; setErr(problems()); }, [rows, extra]);
 
   // R3.7 (our fork): opening the screen puts the caret in the first column field; the marker focus trick keeps
   // it from stealing focus again after every keystroke.
+  // R3.9 (the typing blocker): this effect used to depend on `rows`, so it ran after every keystroke and moved
+  // the caret into the first field of the table - the remaining characters of the word were typed into row 1.
+  // Putting the caret in the first field is a one-time part of opening the screen, so it belongs to the load, not
+  // to every change of the list.
   (0, pe.useEffect)(function () {
-    if (rows === null) return;
+    if (rows === null || focusPlacedRef.current) return;
+    focusPlacedRef.current = true;
     var field = document.querySelector('.kanban-wf-row input');
-    if (field && !field.dataset.wfFocused) { field.dataset.wfFocused = '1'; field.focus(); }
+    if (field) field.focus();
   }, [rows]);
   (0, pe.useEffect)(function () {
     if (!open) return;
@@ -359,7 +367,7 @@ function KanbanWorkflowEditor(e){
         (0, W.jsx)('div', { className: 'kanban-wf-skeleton' }),
         (0, W.jsx)('div', { className: 'kanban-wf-skeleton', style: { marginTop: 8 } }),
         (0, W.jsx)('div', { className: 'kanban-wf-skeleton', style: { marginTop: 8, width: '60%' } })
-      ] }) : null,
+      ] }, 'skeleton') : null,
       fatal ? (0, W.jsxs)('div', { children: [
         (0, W.jsx)('p', { className: 'kanban-wf-error', role: 'alert', children: fill(text('wfLoadFailed', 'Could not read the settings: {detail}'), 'detail', fatal) }),
         (0, W.jsx)('button', { className: 'kanban-toolbar-button', type: 'button', onClick: load, children: text('wfRetry', 'Retry') })
@@ -424,7 +432,7 @@ function KanbanWorkflowEditor(e){
           (0, W.jsx)('button', { className: 'kanban-toolbar-button', type: 'button', disabled: !String(newTitle || '').trim(), onClick: addColumn, children: text('wfAdd', 'Add column') })
         ] }, 'add'),
         (0, W.jsx)('div', { className: 'kanban-wf-live', 'aria-live': 'polite', children: live }, 'live')
-      ] }),
+      ] }, 'columns'),
       (0, W.jsxs)('div', { className: 'kanban-wf-section', children: [
         (0, W.jsxs)('div', { className: 'kanban-wf-section-head', children: [
           (0, W.jsxs)('div', { children: [
@@ -445,7 +453,7 @@ function KanbanWorkflowEditor(e){
         switchRow('wfLabels', 'Label assignments', extra.labelAssignments, 'labelAssignments'),
         switchRow('wfDispatch', 'Dispatch to agents', extra.dispatchEnabled, 'dispatchEnabled'),
         (0, W.jsxs)('label', { className: 'kanban-wf-field', children: [text('wfDispatchModel', 'Model'), (0, W.jsx)('input', { value: extra.dispatchModel, placeholder: text('wfModelHint', 'provider/model'), 'aria-label': text('wfDispatchModel', 'Model'), placeholder: 'provider/model', onChange: function (ev) { setDirty(true); setExtra(Object.assign({}, extra, { dispatchModel: ev.target.value })); } })] }, 'model')
-      ] }),
+      ] }, 'automation'),
       (0, W.jsxs)('div', { className: 'kanban-wf-section', children: [
         (0, W.jsxs)('div', { className: 'kanban-wf-section-head', children: [
           (0, W.jsxs)('div', { children: [
@@ -459,7 +467,7 @@ function KanbanWorkflowEditor(e){
           text('wfEnabled', 'Orchestrator on this board')
         ] }, 'wfEnabled'),
         savedState ? (0, W.jsx)('p', { className: savedState === text('wfBoardSaved', 'saved') ? 'kanban-wf-ok' : 'kanban-wf-error', children: savedState }, 'boardstate') : null
-      ] })
+      ] }, 'board')
     ].filter(Boolean) }),
     (0, W.jsxs)('div', { className: 'kanban-wf-foot', children: [
       confirmClose ? (0, W.jsxs)('div', { className: 'kanban-wf-close', children: [

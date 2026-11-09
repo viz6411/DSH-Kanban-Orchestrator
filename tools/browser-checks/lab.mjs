@@ -8,7 +8,9 @@ export function launchToken() {
   return out.trim().replace(/^\?token=/, '')
 }
 export async function openGui({ width = 1440, height = 900, locale = null } = {}) {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--force-color-profile=srgb'] })
+  // The checks run next to the Harness on a small machine and the Harness sits close to its own heap ceiling:
+  // two of its restarts today coincided with a browser check. Keep the renderer cheap.
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', '--force-color-profile=srgb', '--renderer-process-limit=1', '--disable-gpu', '--js-flags=--max-old-space-size=256'] })
   const options = { viewport: { width, height }, deviceScaleFactor: 1 }
   if (locale) options.locale = locale
   const context = await browser.newContext(options)
